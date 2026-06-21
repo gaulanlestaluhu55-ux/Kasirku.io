@@ -200,35 +200,52 @@
         }
 
         function startWirelessPolling() {
-            if (wirelessPollingInterval) clearInterval(wirelessPollingInterval);
-            
-            document.getElementById('scanner-sync-status').innerHTML = `<i class="fa-solid fa-wifi animate-pulse text-brand-600 mr-1.5"></i> Menunggu HP terhubung...`;
-            
-            // Lakukan polling memori server Google setiap 1.5 detik sekali
-            wirelessPollingInterval = setInterval(() => {
-                if (isCloudMode) {
-                    google.script.run.withSuccessHandler((scannedBarcode) => {
-                        if (scannedBarcode) {
-                            playVirtualBeep();
-                            processScannedBarcode(scannedBarcode);
-                            document.getElementById('scanner-sync-status').innerHTML = `<span class="text-brand-600 font-bold"><i class="fa-solid fa-circle-check"></i> Terbaca! Terakhir: ${scannedBarcode}</span>`;
-                        }
-                    }).pollScannerCache(wirelessSessionId);
-                } else {
-                    // Simulasi tiruan demo di local sandbox agar lo bisa lihat cara kerjanya di peramban
-                    if (Math.random() > 0.90) {
-                        const randomProduct = state.products[Math.floor(Math.random() * state.products.length)];
-                        playVirtualBeep();
-                        processScannedBarcode(randomProduct.sku);
-                        document.getElementById('scanner-sync-status').innerHTML = `<span class="text-brand-600 font-bold"><i class="fa-solid fa-circle-check"></i> Terbaca! Terakhir: ${randomProduct.sku}</span>`;
-                    }
-                }
-            }, 1500);
+    if (wirelessPollingInterval) clearInterval(wirelessPollingInterval);
+
+    document.getElementById('scanner-sync-status').innerHTML =
+        `<i class="fa-solid fa-wifi animate-pulse text-brand-600 mr-1.5"></i> Menunggu HP terhubung...`;
+
+    // Polling REST API setiap 1.5 detik
+    wirelessPollingInterval = setInterval(async () => {
+        if (!isCloudMode) {
+            // MODE DEMO LOKAL
+            if (Math.random() > 0.90) {
+                const randomProduct = state.products[Math.floor(Math.random() * state.products.length)];
+                playVirtualBeep();
+                processScannedBarcode(randomProduct.sku);
+
+                document.getElementById('scanner-sync-status').innerHTML =
+                    `<span class="text-brand-600 font-bold">
+                        <i class="fa-solid fa-circle-check"></i> Terbaca! Terakhir: ${randomProduct.sku}
+                    </span>`;
+            }
+            return;
         }
 
-        function stopWirelessPolling() {
-            if (wirelessPollingInterval) {
-                clearInterval(wirelessPollingInterval);
-                wirelessPollingInterval = null;
+        try {
+            const res = await callBackendAPI("pollCache", {
+                session: wirelessSessionId
+            });
+
+            if (res && res.sku) {
+                playVirtualBeep();
+                processScannedBarcode(res.sku);
+
+                document.getElementById('scanner-sync-status').innerHTML =
+                    `<span class="text-brand-600 font-bold">
+                        <i class="fa-solid fa-circle-check"></i> Terbaca! Terakhir: ${res.sku}
+                    </span>`;
             }
+        } catch (err) {
+            console.error("Wireless polling error:", err);
         }
+
+    }, 1500);
+}
+
+function stopWirelessPolling() {
+    if (wirelessPollingInterval) {
+        clearInterval(wirelessPollingInterval);
+        wirelessPollingInterval = null;
+    }
+}
