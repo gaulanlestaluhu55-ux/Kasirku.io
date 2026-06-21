@@ -1,7 +1,7 @@
 /**
  * ================================================================= -->
  * === FILE: js/laporan.js (DASHBOARD STATISTIK & LAPORAN) ========= -->
- * === LOKASI: Folder /js/ di dalam Repositori Github Pages ======= -->
+ * === LOKASI: Folder /js/ di dalam Repositori Github Pages ======== -->
  * ================================================================= -->
  */
 
@@ -93,8 +93,11 @@ function renderPopularItems() {
     });
 }
 
+// ==========================================
+// MODAL STOK TIPIS (LOW STOCK ALERT) DENGAN MEMORI LOKAL
+// ==========================================
 function openLowStockModal() {
-    renderLowStockList();
+    renderLowStockList(); // Pastikan render dipanggil duluan agar data selalu segar
     document.getElementById('modal-low-stock').classList.remove('hidden');
 }
 
@@ -123,24 +126,45 @@ function renderLowStockList() {
     }
 
     lowStockProducts.forEach(p => {
+        // Ambil index aslinya biar bisa dikirim ke fungsi Restock di inventory.js
         const originalIndex = state.products.findIndex(op => op.sku === p.sku);
+        
+        // --- LOGIKA GAMBAR STORAGE LOKAL (KEBAL CORS) ---
+        const productImgSrc = p.image === 'LOCAL' 
+            ? (localStorage.getItem('kasirku_img_' + p.sku) || 'https://placehold.co/150x150/f1f5f9/94a3b8?text=P') 
+            : p.image;
+
         const itemDiv = document.createElement('div');
-        itemDiv.className = "p-3 rounded-2xl border border-rose-100 bg-gradient-to-r from-rose-50/50 to-white flex items-center justify-between gap-3 shadow-xs";
+        // Styling Card mirip banget sama Mockup desain lo
+        itemDiv.className = "p-3 rounded-2xl border border-rose-100 bg-gradient-to-r from-rose-50/50 to-white flex items-center justify-between gap-3 shadow-xs mb-3";
         itemDiv.innerHTML = `
             <div class="flex items-center gap-3 min-w-0">
-                <img src="${p.image}" class="w-12 h-12 rounded-xl object-cover bg-slate-100 shrink-0 border border-slate-200" onerror="this.src='https://placehold.co/150x150/f1f5f9/94a3b8?text=P'">
+                <img src="${productImgSrc}" class="w-12 h-12 rounded-xl object-cover bg-slate-100 shrink-0 border border-slate-200" onerror="this.src='https://placehold.co/150x150/f1f5f9/94a3b8?text=P'">
                 <div class="space-y-0.5 min-w-0">
                     <h4 class="text-xs font-bold text-slate-700 truncate">${p.name}</h4>
                     <p class="text-[9px] font-mono text-slate-500">SKU: ${p.sku}</p>
                     <p class="text-[10px] font-black text-rose-600">Sisa Stok: ${p.stock} pcs</p>
                 </div>
             </div>
-            <button onclick="openRestockModal(${originalIndex})" class="shrink-0 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl text-[10px] font-extrabold flex items-center gap-1.5 transition-colors border border-emerald-200/60 shadow-xs">
+            <button type="button" onclick="triggerRestockFromAlert(${originalIndex})" class="shrink-0 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl text-[10px] font-extrabold flex items-center gap-1.5 transition-colors border border-emerald-200/60 shadow-xs">
                 <i class="fa-solid fa-box-open"></i> Restock
             </button>
         `;
         container.appendChild(itemDiv);
     });
+}
+
+/**
+ * FUNGSI JEMBATAN ANTAR FILE (laporan.js -> inventory.js)
+ */
+function triggerRestockFromAlert(originalIndex) {
+    closeLowStockModal(); // Tutup modal alert merah
+    
+    if (typeof openRestockModal === 'function') {
+        openRestockModal(originalIndex); // Buka modal restock hijau
+    } else {
+        showToast("Sistem mendeteksi fungsi restock belum termuat.", "error");
+    }
 }
 
 // ==========================================
