@@ -178,10 +178,14 @@
             };
 
             if (isCloudMode) {
-                google.script.run.withSuccessHandler(function(baseUrl) {
-                    buildQrCode(baseUrl);
-                }).getWebAppUrl();
-            } else {
+    callBackendAPI("getAppUrl").then(res => {
+        if (res && res.url) {
+            buildQrCode(res.url);
+        } else {
+            showToast("Gagal ambil URL backend", "error");
+        }
+    });
+} else {
                 // Mode simulasi/lokal untuk uji coba antarmuka
                 buildQrCode("https://script.google.com/macros/s/SIMULASI/exec");
             }
