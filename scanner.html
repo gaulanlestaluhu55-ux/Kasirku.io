@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KasirKu - HP Wireless Scanner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        /* Sembunyikan scrollbar riwayat scan */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col justify-between antialiased">
+
+    <header class="bg-slate-800 p-4 border-b border-slate-700 flex justify-between items-center shrink-0 shadow-md">
+        <div class="flex items-center gap-2">
+            <i class="fa-solid fa-wifi text-emerald-400 animate-pulse text-sm"></i>
+            <div>
+                <h1 class="text-sm font-extrabold tracking-tight">Wireless HP Scanner</h1>
+                <p id="display-session" class="text-[9px] text-slate-400 font-bold uppercase tracking-wider font-mono">Session: Mencari Sesi...</p>
+            </div>
+        </div>
+        <span class="px-2.5 py-1 bg-emerald-500/20 text-emerald-400 text-[10px] font-black rounded-lg uppercase tracking-wider">GitHub Context</span>
+    </header>
+
+    <main class="flex-1 flex flex-col justify-center items-center p-4 relative min-h-0">
+        <div class="w-full max-w-sm aspect-square bg-black rounded-3xl overflow-hidden border-2 border-slate-700 shadow-2xl relative">
+            <div id="hp-reader" class="w-full h-full"></div>
+            <div class="absolute inset-x-4 top-1/2 h-0.5 bg-rose-500 shadow-md shadow-rose-500/50 animate-pulse z-20 pointer-events-none"></div>
+        </div>
+        <p class="text-xs text-slate-400 text-center mt-4 font-semibold max-w-[280px]">Arahkan kamera ke barcode kemasan produk toko</p>
+    </main>
+
+    <div class="bg-slate-800 border-t border-slate-700 p-5 shrink-0 rounded-t-[2rem] shadow-2xl">
+        <h4 class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">History Scan Terakhir</h4>
+        <div id="scan-history" class="space-y-2 max-h-28 overflow-y-auto no-scrollbar">
+            <p class="text-[10px] text-slate-500 font-semibold text-center py-4">Belum ada barang di-scan.</p>
+        </div>
+    </div>
+
+    <script>
+        // Tangkap URL API Utama & Token Sesi secara dinamis lewat parameter link GitHub lo
+        const urlParams = new URLSearchParams(window.location.search);
+        const apiEndpoint = urlParams.get('api'); 
+        const sessionId = urlParams.get('session');
+
+        if (sessionId) {
+            document.getElementById('display-session').innerText = "Session: " + sessionId;
+        }
+
+        function startHpScanner() {
+            // Validasi kelengkapan parameter router
+            if (!apiEndpoint || !sessionId) {
+                alert("Konfigurasi integrasi pincang! Silakan tutup modal dan buka kembali QR Code dari PC Kasir.");
+                return;
+            }
+
+            const html5QrCode = new Html5Qrcode("hp-reader");
+            const config = { fps: 15, qrbox: { width: 250, height: 250 } };
+            let scanThrottle = false;
+            
+            const onScanSuccess = (decodedText) => {
+                if (scanThrottle) return;
+                scanThrottle = true;
+                setTimeout(() => { scanThrottle = false; }, 1500); // Meredam double trigger scan beruntun
+                playLocalBeep();
+                sendBarcodeToSheetsAPI(decodedText.trim());
+            };
+
+            // JURUS 1: Paksa panggil kamera belakang perangkat (Di-allow karena context HTTPS asli GitHub Pages)
+            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess, () => {})
+            .catch(err => {
+                console.warn("Kamera belakang tidak respons, mencoba beralih ke kamera sekunder...");
+                
+                // JURUS 2: Rute alternatif jika diuji coba lewat webcam browser desktop
+                html5QrCode.start({ facingMode: "user" }, config, onScanSuccess, () => {})
+                .catch(err2 => {
+                    alert("Akses perangkat kamera diblokir oleh sistem browser Anda! Cek pengaturan izin situs.");
+                });
+            });
+        }
+
+        function playLocalBeep() {
+            try {
+                let context = new (window.AudioContext || window.webkitAudioContext)();
+                let osc = context.createOscillator();
+                osc.type = "sine"; osc.frequency.value = 1000;
+                osc.connect(context.destination); osc.start();
+                setTimeout(() => osc.stop(), 80);
+            } catch(e) {}
+        }
+
+        // Jalankan fetch data nirkabel murni ke Apps Script milik pembeli lo
+        async function sendBarcodeToSheetsAPI(barcode) {
+            // Flash efek warna latar belakang tanda barang masuk
+            document.body.classList.add("bg-emerald-950");
+            setTimeout(() => { document.body.classList.remove("bg-emerald-950"); }, 150);
+
+            // Tembak langsung ke API Apps Script pembeli tanpa muter-muter lewat GAS HTML interface
+            const requestUrl = `${apiEndpoint}?action=writeCache&session=${encodeURIComponent(sessionId)}&sku=${encodeURIComponent(barcode)}`;
+
+            try {
+                const response = await fetch(requestUrl);
+                const result = await response.json();
+                
+                if (result && result.status === "success") {
+                    updateHistory(barcode);
+                } else {
+                    alert("Gagal sinkronisasi data. Token sesi pairing Anda kemungkinan telah kedaluwarsa.");
+                }
+            } catch (error) {
+                console.error("Kesalahan koneksi API Gateway:", error);
+                alert("Koneksi gagal! Silakan periksa jaringan internet perangkat HP Anda.");
+            }
+        }
+
+        function updateHistory(barcode) {
+            const container = document.getElementById('scan-history');
+            if (container.querySelector('p')) { container.innerHTML = ''; }
+            const timeStr = new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const item = document.createElement('div');
+            item.className = "flex justify-between items-center bg-slate-700/50 px-4 py-2.5 rounded-xl text-xs font-mono shadow-inner border border-slate-700";
+            item.innerHTML = `<span class="text-slate-200 font-bold">${barcode}</span><span class="text-[10px] text-emerald-400 font-extrabold"><i class="fa-solid fa-circle-check"></i> ${timeStr}</span>`;
+            container.insertBefore(item, container.firstChild);
+        }
+
+        window.addEventListener('DOMContentLoaded', startHpScanner);
+    </script>
+</body>
+</html>
