@@ -36,6 +36,9 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const req = event.request;
 
+  // FIX: Abaikan request aneh dari Ekstensi Chrome (Biar console bersih dari error)
+  if (!req.url.startsWith('http')) return;
+
   // API selalu NETWORK FIRST (biar data akurat)
   if (req.url.includes("script.google.com")) {
     event.respondWith(fetch(req));
