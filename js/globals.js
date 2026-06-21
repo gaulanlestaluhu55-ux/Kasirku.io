@@ -220,7 +220,7 @@ function showToast(message, type = 'info') {
 }
 
 function switchTab(tabId) {
-    document.querySelectorAll('main > section').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll("section[id^='page-']").forEach(el => {     el.classList.add('hidden'); });
     const targetPage = document.getElementById(`page-${tabId}`);
     if (targetPage) targetPage.classList.remove('hidden');
 
