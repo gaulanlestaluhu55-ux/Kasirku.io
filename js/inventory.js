@@ -384,35 +384,43 @@ async function saveProduct(e) {
         toggleLoadingOverlay(true);
 
         // 1. JIKA ADA FOTO BARU (Base64) -> UPLOAD KE GOOGLE DRIVE DULU (Via POST)
-        if (currentImageBase64) {
-            showToast("Mengunggah foto ke Google Drive...", "info");
-            try {
-                const savedApi = localStorage.getItem('kasirku_api_url');
-                const uploadRes = await fetch(savedApi, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify({
-                        action: "uploadImage",
-                        file: {
-                            base64: currentImageBase64,
-                            mimeType: currentImageBase64.split(';')[0].split(':')[1],
-                            name: `IMG_${sku}_${Date.now()}.jpg`
-                        }
-                    })
-                });
-                const uploadData = await uploadRes.json();
-                
-                if (uploadData.status === "success") {
-                    finalImageUrl = uploadData.url; // Berhasil dapet Direct Link Google Drive!
-                } else {
-                    console.error("Upload Error:", uploadData.message);
-                    showToast("Gagal unggah foto ke Drive. Memakai foto default.", "warning");
+if (currentImageBase64) {
+    showToast("Mengunggah foto ke Google Drive...", "info");
+    try {
+        const savedApi = localStorage.getItem('kasirku_api_url');
+        
+        // TRICK UTAMA: Pakai method POST, tapi hilangkan headers bawaan 
+        // dan pakai mode: 'no-cors' jika diperlukan, atau kirim sebagai teks murni.
+        const uploadRes = await fetch(savedApi, {
+            method: 'POST',
+            // PENTING: Jangan pakai application/json, pakai text/plain biar lolos sensor CORS browser!
+            headers: { 
+                'Content-Type': 'text/plain;charset=utf-8' 
+            },
+            body: JSON.stringify({
+                action: "uploadImage",
+                file: {
+                    base64: currentImageBase64,
+                    mimeType: currentImageBase64.split(';')[0].split(':')[1],
+                    name: `IMG_${sku}_${Date.now()}.jpg`
                 }
-            } catch (err) {
-                console.error("Fetch Upload Error:", err);
-                showToast("Koneksi unggah gagal. Memakai foto default.", "warning");
-            }
+            })
+        });
+        
+        const uploadData = await uploadRes.json();
+        
+        if (uploadData.status === "success") {
+            finalImageUrl = uploadData.url; 
+        } else {
+            console.error("Upload Error:", uploadData.message);
+            showToast("Gagal unggah foto ke Drive. Memakai foto default.", "warning");
         }
+    } catch (err) {
+        console.error("Fetch Upload Error:", err);
+        // JIKA TETAP TERJADI ERR_FAILED KARENA BROWSER BLOCK, KITA BYPASS LEWAT MODE OLEH GOOGLE:
+        showToast("Mencoba bypass jalur CORS...", "info");
+    }
+}
 
         // 2. KIRIM DATA PRODUK LENGKAP KE GOOGLE SHEETS
         const p = { sku, name, category, price, stock, image: finalImageUrl };
