@@ -1,7 +1,7 @@
 /**
  * ================================================================= -->
  * === FILE: js/kasir.js (LOGIKA KATALOG, KERANJANG & CHECKOUT) ===== -->
- * === LOKASI: Folder /js/ di dalam Repositori Github Pages ======= -->
+ * === LOKASI: Folder /js/ di dalam Repositori Github Pages ======== -->
  * ================================================================= -->
  */
 
@@ -26,7 +26,7 @@ function filterPOSProducts() {
 }
 
 // ==========================================
-// 2. RENDER KATALOG UTAMA (MODE POS)
+// 2. RENDER KATALOG UTAMA (MODE POS DENGAN MEMORI LOKAL GAMBAR)
 // ==========================================
 function renderPOSProducts() {
     const grid = document.getElementById('pos-product-grid');
@@ -46,11 +46,17 @@ function renderPOSProducts() {
 
     filtered.forEach(p => {
         const isOutOfStock = p.stock <= 0;
+        
+        // --- AMBIL SOURCE GAMBAR SECARA DINAMIS DI HALAMAN KASIR ---
+        const productImgSrc = p.image === 'LOCAL' 
+            ? (localStorage.getItem('kasirku_img_' + p.sku) || 'https://placehold.co/150x150/f1f5f9/94a3b8?text=Produk') 
+            : p.image;
+
         const card = document.createElement('div');
         card.className = `bg-gradient-to-b from-brand-50/40 via-white to-white p-3.5 rounded-3xl border border-brand-100/70 shadow-xs hover:shadow-lg hover:border-brand-400 transition-all duration-300 group ${isOutOfStock ? 'opacity-65' : ''}`;
         card.innerHTML = `
             <div class="relative rounded-2xl overflow-hidden aspect-square bg-slate-100 mb-3">
-                <img src="${p.image}" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" onerror="this.src='https://placehold.co/150x150/f1f5f9/94a3b8?text=Produk'">
+                <img src="${productImgSrc}" class="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" onerror="this.src='https://placehold.co/150x150/f1f5f9/94a3b8?text=Produk'">
                 ${isOutOfStock ? '<span class="absolute inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center text-white font-extrabold text-xs">Stok Habis</span>' : ''}
             </div>
             <div class="space-y-1 mb-3">
@@ -90,6 +96,9 @@ function addToCart(sku) {
     renderCart();
 }
 
+// ==========================================
+// 4. RENDER ANTARMUKA KERANJANG (DESKTOP & MOBILE COUPLING)
+// ==========================================
 function updateCartQty(sku, adjustment) {
     const item = state.cart.find(i => i.sku === sku);
     const product = state.products.find(p => p.sku === sku);
@@ -113,9 +122,6 @@ function clearCart() {
     showToast('Keranjang belanja dikosongkan.', 'info');
 }
 
-// ==========================================
-// 4. RENDER ANTARMUKA KERANJANG (DESKTOP & MOBILE COUPLING)
-// ==========================================
 function renderCart() {
     const totalQty = state.cart.reduce((sum, item) => sum + item.qty, 0);
     const badge = document.getElementById('cart-badge-mobile');
@@ -269,7 +275,6 @@ function processCheckout() {
 
     if (isCloudMode) {
         toggleLoadingOverlay(true);
-        // REFORMED: Mengganti google.script.run lama ke fetch API terpadu whitelabel
         callBackendAPI("processTransaction", { data: JSON.stringify(txRecord) }).then(res => {
             toggleLoadingOverlay(false);
             if (res && res.status === "success") {
