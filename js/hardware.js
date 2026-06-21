@@ -165,34 +165,39 @@
 
         // UPGRADED: FUNGSI NIRKABEL HP SCANNER PAIRING & POLLING LOGIC
         function openWirelessScannerModal() {
-            if (!wirelessSessionId) {
-                // Buat Session ID unik bertipe 6 digit teks acak
-                wirelessSessionId = "KSR-" + Math.random().toString(36).substring(2, 8).toUpperCase();
-            }
-            document.getElementById('scanner-session-id').innerText = wirelessSessionId;
+    if (!wirelessSessionId) {
+        // Buat Session ID unik bertipe 6 digit teks acak
+        wirelessSessionId = "KSR-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+    }
+    document.getElementById('scanner-session-id').innerText = wirelessSessionId;
 
-            const buildQrCode = (url) => {
-                let pairingUrl = url + "?session=" + wirelessSessionId;
-                let qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(pairingUrl);
-                document.getElementById('scanner-qr-container').innerHTML = `<img src="${qrUrl}" class="w-44 h-44 object-contain mx-auto" alt="QR Link Pairing">`;
-            };
+    // --- KUNCI MATI KE LINK GITHUB LO BRO! ---
+    const githubScannerUrl = "https://gaulanlestaluhu55-ux.github.io/Kasirku.io/scanner.html";
 
-            if (isCloudMode) {
-    callBackendAPI("getAppUrl").then(res => {
-        if (res && res.url) {
-            buildQrCode(res.url);
+    const buildQrCode = (userApiUrl) => {
+        // Rakit URL sakti: GitHub URL + API Parameter + Session ID
+        let pairingUrl = `${githubScannerUrl}?api=${encodeURIComponent(userApiUrl)}&session=${encodeURIComponent(wirelessSessionId)}`;
+        
+        // Generate QR Code
+        let qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=" + encodeURIComponent(pairingUrl);
+        document.getElementById('scanner-qr-container').innerHTML = `<img src="${qrUrl}" class="w-44 h-44 object-contain mx-auto" alt="QR Link Pairing">`;
+    };
+
+    if (isCloudMode) {
+        const savedApi = localStorage.getItem('kasirku_api_url');
+        if (savedApi) {
+            buildQrCode(savedApi);
         } else {
-            showToast("Gagal ambil URL backend", "error");
+            showToast("Gagal membaca konfigurasi API awan.", "error");
         }
-    });
-} else {
-                // Mode simulasi/lokal untuk uji coba antarmuka
-                buildQrCode("https://script.google.com/macros/s/SIMULASI/exec");
-            }
+    } else {
+        // Mode simulasi/lokal untuk uji coba antarmuka
+        buildQrCode("https://script.google.com/macros/s/SIMULASI/exec");
+    }
 
-            document.getElementById('modal-wireless-scanner').classList.remove('hidden');
-            startWirelessPolling();
-        }
+    document.getElementById('modal-wireless-scanner').classList.remove('hidden');
+    startWirelessPolling();
+}
 
         function closeWirelessScannerModal() {
             document.getElementById('modal-wireless-scanner').classList.add('hidden');
