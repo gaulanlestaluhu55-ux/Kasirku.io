@@ -247,3 +247,16 @@ function switchTab(tabId) {
 
     if (tabId === 'laporan' && typeof updateDashboardStats === 'function') updateDashboardStats();
 }
+
+// ==========================================
+// 5. FITUR MAINTENANCE STORAGE LOKAL (OPSIONAL)
+// ==========================================
+function clearAllLocalProductImages() {
+    Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('kasirku_img_')) {
+            localStorage.removeItem(key);
+        }
+    });
+    showToast("Semua cache gambar lokal berhasil dibersihkan!", "info");
+    window.location.reload();
+}
