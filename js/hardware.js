@@ -89,23 +89,26 @@
         }
 
         function processScannedBarcode(barcode) {
-            const foundProduct = AppState.products.find(p => String(p.sku) === String(barcode));
-            if (!foundProduct) { showToast(`Barcode [${barcode}] tidak terdaftar di Toko!`, "error"); return; }
-            activeBufferProduct = foundProduct;
-            document.getElementById('buffer-product-image').src = foundProduct.image;
-            document.getElementById('buffer-product-sku').innerText = foundProduct.sku;
-            document.getElementById('buffer-product-name').innerText = foundProduct.name;
-            document.getElementById('buffer-product-category').innerText = foundProduct.category;
-            document.getElementById('buffer-product-price').innerText = formatRupiah(foundProduct.price);
-            document.getElementById('buffer-stock-store').innerText = `${foundProduct.stock} pcs`;
-            const existingInCart = state.cart.find(item => item.sku === foundProduct.sku);
-            const cartQty = existingInCart ? existingInCart.qty : 0;
-            document.getElementById('buffer-stock-cart').innerText = `${cartQty} pcs`;
-            document.getElementById('buffer-qty-input').value = 1;
-            document.getElementById('modal-scan-buffer').classList.remove('hidden');
-            validateBufferQtyInput();
-        }
-
+    // FIX: Ganti AppState menjadi state
+    const foundProduct = state.products.find(p => String(p.sku) === String(barcode));
+    
+    if (!foundProduct) { showToast(`Barcode [${barcode}] tidak terdaftar di Toko!`, "error"); return; }
+    activeBufferProduct = foundProduct;
+    document.getElementById('buffer-product-image').src = foundProduct.image;
+    document.getElementById('buffer-product-sku').innerText = foundProduct.sku;
+    document.getElementById('buffer-product-name').innerText = foundProduct.name;
+    document.getElementById('buffer-product-category').innerText = foundProduct.category;
+    document.getElementById('buffer-product-price').innerText = formatRupiah(foundProduct.price);
+    document.getElementById('buffer-stock-store').innerText = `${foundProduct.stock} pcs`;
+    
+    const existingInCart = state.cart.find(item => item.sku === foundProduct.sku);
+    const cartQty = existingInCart ? existingInCart.qty : 0;
+    
+    document.getElementById('buffer-stock-cart').innerText = `${cartQty} pcs`;
+    document.getElementById('buffer-qty-input').value = 1;
+    document.getElementById('modal-scan-buffer').classList.remove('hidden');
+    validateBufferQtyInput();
+}
         function openScanBufferModalPlaceholder() {
             document.getElementById('buffer-product-image').src = "https://placehold.co/150x150/f1f5f9/94a3b8?text=Scan...";
             document.getElementById('buffer-product-sku').innerText = "-----";
