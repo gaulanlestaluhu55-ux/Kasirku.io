@@ -374,11 +374,13 @@ function saveProduct(e) {
     let inputUrl = document.getElementById('form-product-image-url').value;
     let finalImageValue = "LOCAL";
 
-    if (currentImageBase64) {
+    // 1. Amankan gambar ke memori HP/Desktop internal jika ada Base64 baru
+    if (currentImageBase64 && currentImageBase64.startsWith('data:image/')) {
         try {
             localStorage.setItem(`kasirku_img_${sku}`, currentImageBase64);
         } catch (err) {
             console.error("Storage lokal penuh:", err);
+            showToast("Memori browser penuh, gambar gagal disimpan lokal.", "warning");
         }
         finalImageValue = "LOCAL";
     } else if (inputUrl && inputUrl.startsWith('http')) {
@@ -389,7 +391,22 @@ function saveProduct(e) {
         finalImageValue = 'https://placehold.co/150x150/f1f5f9/94a3b8?text=Produk';
     }
 
-    const p = { sku, name, category, price, stock, image: finalImageValue };
+    // ====================================================================
+    // 2. CRITICAL FIX FOR HP: 
+    // Buat object terpisah khusus cloud yang isinya HANYA teks "LOCAL", 
+    // agar URL GET tidak bengkak karena string Base64 gambar kamera HP!
+    // ====================================================================
+    const productToCloud = { 
+        sku, 
+        name, 
+        category, 
+        price, 
+        stock, 
+        image: finalImageValue === "LOCAL" || finalImageValue.startsWith('data:image/') ? "LOCAL" : finalImageValue 
+    };
+
+    // Object untuk state lokal runtime PWA lo
+    const p = { ...productToCloud, image: currentImageBase64 || finalImageValue };
 
     const localSave = () => {
         if (idx > -1) { 
@@ -413,7 +430,8 @@ function saveProduct(e) {
         toggleLoadingOverlay(true);
         showToast("Menyimpan ke Cloud...", "info");
 
-        callBackendAPI("saveProduct", { data: JSON.stringify(p) }).then(res => {
+        // Kirim 'productToCloud' yang bersih tanpa muatan Base64 raksasa ke Sheets!
+        callBackendAPI("saveProduct", { data: JSON.stringify(productToCloud) }).then(res => {
             toggleLoadingOverlay(false);
             if (res && res.status === "success") {
                 localSave();
@@ -423,6 +441,7 @@ function saveProduct(e) {
             }
         }).catch(err => {
             toggleLoadingOverlay(false);
+            console.error("Cloud Save Error:", err);
             showToast('Koneksi terputus!', 'error');
         });
         
