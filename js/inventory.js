@@ -1,14 +1,14 @@
 /**
  * ================================================================= -->
- * === FILE: js/inventory.js (CRUD PRODUK & RESTOCK) =============== -->
- * === LOKASI: Folder /js/ di dalam Repositori Github Pages ======= -->
+ * === FILE: js/inventory.js (CRUD PRODUK, RESTOCK & KAMERA UI) ==== -->
+ * === LOKASI: Folder /js/ di dalam Repositori Github Pages ======== -->
  * ================================================================= -->
  */
 
 let deleteTargetIndex = -1;
 let restockTargetIndex = -1;
-let currentFormImage = '';
 let cameraStream = null;
+let currentImageBase64 = null; // Menyimpan data Base64 (Kamera/File) siap upload
 let skuHtml5QrCode = null;
 
 // ==========================================
@@ -148,7 +148,6 @@ function saveRestock(e) {
 
     if (isCloudMode) {
         toggleLoadingOverlay(true);
-        // REFORMED: Integrasi REST API JSON Payload
         callBackendAPI("saveProduct", { data: JSON.stringify(updatedProduct) }).then(res => {
             toggleLoadingOverlay(false);
             if (res && res.status === "success") {
@@ -168,62 +167,98 @@ function saveRestock(e) {
 }
 
 // ==========================================
-// 3. LOGIKA FORM PRODUK (GAMBAR & KAMERA)
+// 3. LOGIKA FORM GAMBAR 3-IN-1 (FILE, KAMERA, URL)
 // ==========================================
-function setFormImage(src) {
-    currentFormImage = src;
+
+function handleImageUrlInput(url) {
     const preview = document.getElementById('form-product-image-preview');
     const placeholder = document.getElementById('form-product-image-placeholder');
-    if (src) { 
-        preview.src = src; 
-        preview.classList.remove('hidden'); 
-        placeholder.classList.add('hidden'); 
-    } else { 
-        preview.src = ''; 
-        preview.classList.add('hidden'); 
-        placeholder.classList.remove('hidden'); 
+
+    if (url && url.startsWith('http')) {
+        preview.src = url;
+        preview.classList.remove('hidden');
+        placeholder.classList.add('hidden');
+        currentImageBase64 = null; // Reset base64
+    } else {
+        preview.classList.add('hidden');
+        placeholder.classList.remove('hidden');
     }
 }
 
-function handleImageUrlInput(val) { setFormImage(val); }
-
-function handleImageUpload(e) {
-    const file = e.target.files[0];
-    if (file) { 
-        const r = new FileReader(); 
-        r.onload = function(ev) { 
-            setFormImage(ev.target.result); 
-            document.getElementById('form-product-image-url').value = ''; 
-        }; 
-        r.readAsDataURL(file); 
+function handleImageUpload(event) {
+    const file = event.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            currentImageBase64 = e.target.result;
+            const preview = document.getElementById('form-product-image-preview');
+            const placeholder = document.getElementById('form-product-image-placeholder');
+            
+            preview.src = currentImageBase64;
+            preview.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+            document.getElementById('form-product-image-url').value = '';
+        };
+        reader.readAsDataURL(file);
     }
 }
 
 async function startCamera() {
-    const video = document.getElementById('camera-video');
     try {
-        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-        video.srcObject = cameraStream; document.getElementById('camera-container').classList.remove('hidden');
+        cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: false });
+        const video = document.getElementById('camera-video');
+        video.srcObject = cameraStream;
+        document.getElementById('camera-container').classList.remove('hidden');
     } catch (err) {
         try {
+            // Fallback kamera depan kalau belakang ga ada
             cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-            video.srcObject = cameraStream; document.getElementById('camera-container').classList.remove('hidden');
-        } catch(e) { showToast("Kamera tidak diizinkan.", "error"); }
+            const video = document.getElementById('camera-video');
+            video.srcObject = cameraStream;
+            document.getElementById('camera-container').classList.remove('hidden');
+        } catch(e) {
+            showToast("Gagal mengakses kamera.", "error");
+        }
     }
 }
 
-function stopCamera() { 
-    if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; } 
-    document.getElementById('camera-container').classList.add('hidden'); 
+function stopCamera() {
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+        cameraStream = null;
+    }
+    document.getElementById('camera-container').classList.add('hidden');
 }
 
 function capturePhoto() {
     const video = document.getElementById('camera-video');
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 640; canvas.height = video.videoHeight || 480;
-    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-    // Kompres ke JPEG 85% untuk efisiensi Payload JSON ke Apps Script
-    setFormImage(canvas.toDataURL('image/jpeg', 0.85)); stopCamera();
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    currentImageBase64 = canvas.toDataURL('image/jpeg', 0.85);
+
+    const preview = document.getElementById('form-product-image-preview');
+    const placeholder = document.getElementById('form-product-image-placeholder');
+
+    preview.src = currentImageBase64;
+    preview.classList.remove('hidden');
+    placeholder.classList.add('hidden');
+    document.getElementById('form-product-image-url').value = '';
+
+    stopCamera();
+    showToast("Jepretan berhasil!", "success");
+}
+
+function resetImageForm() {
+    currentImageBase64 = null;
+    document.getElementById('form-product-image-preview').classList.add('hidden');
+    document.getElementById('form-product-image-placeholder').classList.remove('hidden');
+    document.getElementById('form-product-image-url').value = '';
+    document.getElementById('form-product-image-file').value = '';
+    stopCamera();
 }
 
 // ==========================================
@@ -254,7 +289,7 @@ function startSkuScanner() {
                 },
                 (errorMessage) => { /* Abaikan error background */ }
             ).catch((err) => { 
-                showToast("Gagal memulai kamera. Pastikan izin diberikan.", "error"); 
+                showToast("Gagal memulai kamera scanner.", "error"); 
             });
         } else {
             showToast("Tidak ada kamera terdeteksi di perangkat ini.", "error");
@@ -280,10 +315,12 @@ function stopSkuScanner() {
 }
 
 // ==========================================
-// 5. MANIPULASI SIMPAN DATA PRODUK
+// 5. MANIPULASI SIMPAN DATA PRODUK (CLOUD UPLOAD)
 // ==========================================
 function openProductForm(index = -1) {
-    document.getElementById('product-form').reset(); stopCamera();
+    document.getElementById('product-form').reset(); 
+    resetImageForm(); // Panggil reset UI form gambar
+
     if (index > -1) {
         const p = state.products[index];
         document.getElementById('product-modal-title').innerText = 'Edit Produk';
@@ -294,42 +331,46 @@ function openProductForm(index = -1) {
         document.getElementById('form-product-category').value = p.category;
         document.getElementById('form-product-price').value = p.price;
         document.getElementById('form-product-stock').value = p.stock;
-        setFormImage(p.image);
+        
+        // Load existing image
+        document.getElementById('form-product-image-url').value = p.image;
+        handleImageUrlInput(p.image);
     } else {
         document.getElementById('product-modal-title').innerText = 'Tambah Produk Baru';
         document.getElementById('form-product-index').value = -1;
         document.getElementById('form-product-sku').disabled = false;
-        setFormImage('');
     }
     document.getElementById('modal-product-form').classList.remove('hidden');
 }
 
 function closeProductForm() { 
-    stopCamera(); 
+    resetImageForm();
     document.getElementById('modal-product-form').classList.add('hidden'); 
 }
 
-function saveProduct(e) {
+// UBAH JADI ASYNC BIAR BISA NUNGGU UPLOAD GOOGLE DRIVE
+async function saveProduct(e) {
     e.preventDefault();
     const idx = parseInt(document.getElementById('form-product-index').value);
-    const p = {
-        sku: document.getElementById('form-product-sku').value,
-        name: document.getElementById('form-product-name').value,
-        category: document.getElementById('form-product-category').value,
-        price: parseFloat(document.getElementById('form-product-price').value) || 0,
-        stock: parseFloat(document.getElementById('form-product-stock').value) || 0,
-        image: currentFormImage || 'https://placehold.co/150x150/f1f5f9/94a3b8?text=Produk'
-    };
+    const sku = document.getElementById('form-product-sku').value;
+    const name = document.getElementById('form-product-name').value;
+    const category = document.getElementById('form-product-category').value;
+    const price = parseFloat(document.getElementById('form-product-price').value) || 0;
+    const stock = parseFloat(document.getElementById('form-product-stock').value) || 0;
+    
+    // Tentukan URL final (prioritas: Input URL text -> Placehold default)
+    let finalImageUrl = document.getElementById('form-product-image-url').value || 'https://placehold.co/150x150/f1f5f9/94a3b8?text=Produk';
 
-    const localSave = () => {
+    // Local save function wrapper
+    const localSave = (productData) => {
         if (idx > -1) { 
-            state.products[idx] = { ...state.products[idx], ...p }; 
+            state.products[idx] = { ...state.products[idx], ...productData }; 
         } else {
-            if(state.products.some(pr => pr.sku === p.sku)) { 
+            if(state.products.some(pr => pr.sku === productData.sku)) { 
                 showToast('SKU sudah terdaftar!', 'error'); 
                 return false; 
             }
-            state.products.push(p);
+            state.products.push(productData);
         }
         saveToLocalCache(); 
         if(typeof renderPOSProducts === 'function') renderPOSProducts(); 
@@ -341,12 +382,46 @@ function saveProduct(e) {
 
     if (isCloudMode) {
         toggleLoadingOverlay(true);
-        // REFORMED: REST API Cloud Trigger
+
+        // 1. JIKA ADA FOTO BARU (Base64) -> UPLOAD KE GOOGLE DRIVE DULU (Via POST)
+        if (currentImageBase64) {
+            showToast("Mengunggah foto ke Google Drive...", "info");
+            try {
+                const savedApi = localStorage.getItem('kasirku_api_url');
+                const uploadRes = await fetch(savedApi, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify({
+                        action: "uploadImage",
+                        file: {
+                            base64: currentImageBase64,
+                            mimeType: currentImageBase64.split(';')[0].split(':')[1],
+                            name: `IMG_${sku}_${Date.now()}.jpg`
+                        }
+                    })
+                });
+                const uploadData = await uploadRes.json();
+                
+                if (uploadData.status === "success") {
+                    finalImageUrl = uploadData.url; // Berhasil dapet Direct Link Google Drive!
+                } else {
+                    console.error("Upload Error:", uploadData.message);
+                    showToast("Gagal unggah foto ke Drive. Memakai foto default.", "warning");
+                }
+            } catch (err) {
+                console.error("Fetch Upload Error:", err);
+                showToast("Koneksi unggah gagal. Memakai foto default.", "warning");
+            }
+        }
+
+        // 2. KIRIM DATA PRODUK LENGKAP KE GOOGLE SHEETS
+        const p = { sku, name, category, price, stock, image: finalImageUrl };
+
         callBackendAPI("saveProduct", { data: JSON.stringify(p) }).then(res => {
             toggleLoadingOverlay(false);
             if (res && res.status === "success") {
-                localSave();
-                showToast('Tersimpan di Cloud Sheets!', 'success');
+                localSave(p);
+                showToast('Produk & Foto tersimpan di Cloud!', 'success');
             } else {
                 showToast('Gagal menyimpan ke database awan.', 'error');
             }
@@ -354,8 +429,11 @@ function saveProduct(e) {
             toggleLoadingOverlay(false);
             showToast('Koneksi terputus!', 'error');
         });
+        
     } else { 
-        if(localSave()) showToast('Tersimpan secara lokal.', 'success'); 
+        // Mode Offline / Lokal (Simpan Base64 nya langsung ke LocalStorage)
+        const p = { sku, name, category, price, stock, image: currentImageBase64 || finalImageUrl };
+        if(localSave(p)) showToast('Tersimpan secara lokal.', 'success'); 
     }
 }
 
@@ -379,7 +457,6 @@ function deleteProduct(index) {
         
         if (isCloudMode) {
             toggleLoadingOverlay(true);
-            // REFORMED: REST API Cloud Delete Trigger
             callBackendAPI("deleteProduct", { sku: target.sku }).then(res => {
                 toggleLoadingOverlay(false);
                 if (res && res.status === "success") {
