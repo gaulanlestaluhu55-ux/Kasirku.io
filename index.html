@@ -808,20 +808,62 @@
 
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 
-    <script src="js/globals.js"></script>
-    <script src="js/hardware.js"></script>
-    <script src="js/kasir.js"></script>
-    <script src="js/inventory.js"></script>
-    <script src="js/laporan.js"></script>
-    <script src="js/init.js"></script>
+<script src="js/globals.js"></script>
+<script src="js/hardware.js"></script>
+<script src="js/kasir.js"></script>
+<script src="js/inventory.js"></script>
+<script src="js/laporan.js"></script>
+<script src="js/init.js"></script>
 
-    <script>
-        // Trigger inisialisasi lingkungan router SaaS saat web siap dibuka
-        window.addEventListener('DOMContentLoaded', () => {
-            if (typeof checkAppEnvironment === 'function') {
-                checkAppEnvironment();
-            }
-        });
-    </script>
+<script>
+    // Trigger inisialisasi SaaS router saat DOM siap
+    window.addEventListener('DOMContentLoaded', () => {
+        if (typeof checkAppEnvironment === 'function') {
+            checkAppEnvironment();
+        }
+    });
+</script>
+
+<script>
+/**
+ * =========================
+ * PWA SERVICE WORKER SETUP
+ * =========================
+ */
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", async () => {
+    try {
+      const reg = await navigator.serviceWorker.register("./sw.js", {
+        scope: "./"
+      });
+
+      console.log("Service Worker registered:", reg.scope);
+
+    } catch (err) {
+      console.error("Service Worker failed:", err);
+    }
+  });
+}
+
+/**
+ * =========================
+ * PWA INSTALL PROMPT HOOK
+ * =========================
+ */
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  window.deferredPrompt = e;
+  console.log("PWA install ready");
+});
+
+/**
+ * OPTIONAL: detect install success
+ */
+window.addEventListener("appinstalled", () => {
+  console.log("PWA installed successfully");
+  window.deferredPrompt = null;
+});
+</script>
+
 </body>
 </html>
