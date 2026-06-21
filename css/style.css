@@ -1,0 +1,39 @@
+/**
+ * ================================================================= -->
+ * === FILE: css/style.css (CUSTOM CSS MODULAR FRONTEND) =========== -->
+ * === LOKASI: Folder /css/ di dalam Repositori Github Pages ======= -->
+ * ================================================================= -->
+ */
+
+.page-transition {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* KUSTOMISASI DESAIN SCROLLBAR GLOBAL BROWSER */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* UTILITAS UNTUK MENYEMBUNYIKAN SCROLLBAR PADA ELEMEN TERTENTU */
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}
+
+.no-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;     /* Firefox */
+}
