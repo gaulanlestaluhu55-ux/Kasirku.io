@@ -41,6 +41,11 @@ function renderInventory(filterQuery = '') {
         const isLow = p.stock <= 5;
         const originalIndex = state.products.findIndex(op => op.sku === p.sku);
 
+        // --- AMBIL SOURCE GAMBAR SECARA DINAMIS (STRATEGI MEMORI LOKAL) ---
+        const productImgSrc = p.image === 'LOCAL' 
+            ? (localStorage.getItem('kasirku_img_' + p.sku) || 'https://placehold.co/150x150/f1f5f9/94a3b8?text=P') 
+            : p.image;
+
         // --- Render Tabel Desktop ---
         const tr = document.createElement('tr');
         tr.className = "hover:bg-slate-50/50 transition-all duration-150";
@@ -48,7 +53,7 @@ function renderInventory(filterQuery = '') {
             <td class="p-4 font-mono text-xs font-semibold text-slate-500">${p.sku}</td>
             <td class="p-4">
                 <div class="flex items-center gap-3">
-                    <img src="${p.image}" class="w-11 h-11 rounded-xl object-cover bg-slate-100 shadow-xs" onerror="this.src='https://placehold.co/150x150/f1f5f9/94a3b8?text=P'">
+                    <img src="${productImgSrc}" class="w-11 h-11 rounded-xl object-cover bg-slate-100 shadow-xs" onerror="this.src='https://placehold.co/150x150/f1f5f9/94a3b8?text=P'">
                     <span class="font-bold text-slate-700">${p.name}</span>
                 </div>
             </td>
@@ -74,7 +79,7 @@ function renderInventory(filterQuery = '') {
         mCard.className = "p-4 rounded-2xl border border-brand-100/50 shadow-xs flex flex-col gap-3 bg-gradient-to-r from-brand-50/30 to-white";
         mCard.innerHTML = `
             <div class="flex items-start gap-3 min-w-0">
-                <img src="${p.image}" class="w-14 h-14 rounded-xl object-cover bg-slate-100 shrink-0" onerror="this.src='https://placehold.co/150x150/f1f5f9/94a3b8?text=P'">
+                <img src="${productImgSrc}" class="w-14 h-14 rounded-xl object-cover bg-slate-100 shrink-0" onerror="this.src='https://placehold.co/150x150/f1f5f9/94a3b8?text=P'">
                 <div class="space-y-0.5 min-w-0 flex-1">
                     <h4 class="text-sm font-bold text-slate-700 leading-snug truncate">${p.name}</h4>
                     <div class="flex justify-between items-center mt-1">
@@ -169,7 +174,6 @@ function saveRestock(e) {
 // ==========================================
 // 3. LOGIKA FORM GAMBAR 3-IN-1 (FILE, KAMERA, URL)
 // ==========================================
-
 function handleImageUrlInput(url) {
     const preview = document.getElementById('form-product-image-preview');
     const placeholder = document.getElementById('form-product-image-placeholder');
@@ -178,7 +182,7 @@ function handleImageUrlInput(url) {
         preview.src = url;
         preview.classList.remove('hidden');
         placeholder.classList.add('hidden');
-        currentImageBase64 = null; // Reset base64
+        currentImageBase64 = null;
     } else {
         preview.classList.add('hidden');
         placeholder.classList.remove('hidden');
@@ -211,7 +215,6 @@ async function startCamera() {
         document.getElementById('camera-container').classList.remove('hidden');
     } catch (err) {
         try {
-            // Fallback kamera depan kalau belakang ga ada
             cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
             const video = document.getElementById('camera-video');
             video.srcObject = cameraStream;
@@ -315,11 +318,11 @@ function stopSkuScanner() {
 }
 
 // ==========================================
-// 5. MANIPULASI SIMPAN DATA PRODUK (CLOUD UPLOAD)
+// 5. MANIPULASI SIMPAN DATA PRODUK (LOCAL DEVICE STORAGE)
 // ==========================================
 function openProductForm(index = -1) {
     document.getElementById('product-form').reset(); 
-    resetImageForm(); // Panggil reset UI form gambar
+    resetImageForm();
 
     if (index > -1) {
         const p = state.products[index];
@@ -332,9 +335,20 @@ function openProductForm(index = -1) {
         document.getElementById('form-product-price').value = p.price;
         document.getElementById('form-product-stock').value = p.stock;
         
-        // Load existing image
-        document.getElementById('form-product-image-url').value = p.image;
-        handleImageUrlInput(p.image);
+        if (p.image === 'LOCAL') {
+            const localImg = localStorage.getItem('kasirku_img_' + p.image);
+            document.getElementById('form-product-image-url').value = '';
+            const preview = document.getElementById('form-product-image-preview');
+            const placeholder = document.getElementById('form-product-image-placeholder');
+            if (localImg) {
+                preview.src = localImg;
+                preview.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            }
+        } else {
+            document.getElementById('form-product-image-url').value = p.image;
+            handleImageUrlInput(p.image);
+        }
     } else {
         document.getElementById('product-modal-title').innerText = 'Tambah Produk Baru';
         document.getElementById('form-product-index').value = -1;
@@ -348,8 +362,7 @@ function closeProductForm() {
     document.getElementById('modal-product-form').classList.add('hidden'); 
 }
 
-// UBAH JADI ASYNC BIAR BISA NUNGGU UPLOAD GOOGLE DRIVE
-async function saveProduct(e) {
+function saveProduct(e) {
     e.preventDefault();
     const idx = parseInt(document.getElementById('form-product-index').value);
     const sku = document.getElementById('form-product-sku').value;
@@ -358,19 +371,35 @@ async function saveProduct(e) {
     const price = parseFloat(document.getElementById('form-product-price').value) || 0;
     const stock = parseFloat(document.getElementById('form-product-stock').value) || 0;
     
-    // Tentukan URL final (prioritas: Input URL text -> Placehold default)
-    let finalImageUrl = document.getElementById('form-product-image-url').value || 'https://placehold.co/150x150/f1f5f9/94a3b8?text=Produk';
+    let inputUrl = document.getElementById('form-product-image-url').value;
+    let finalImageValue = "LOCAL";
 
-    // Local save function wrapper
-    const localSave = (productData) => {
+    if (currentImageBase64) {
+        try {
+            localStorage.setItem(`kasirku_img_${sku}`, currentImageBase64);
+        } catch (err) {
+            console.error("Storage lokal penuh:", err);
+        }
+        finalImageValue = "LOCAL";
+    } else if (inputUrl && inputUrl.startsWith('http')) {
+        finalImageValue = inputUrl;
+    } else if (idx > -1) {
+        finalImageValue = state.products[idx].image;
+    } else {
+        finalImageValue = 'https://placehold.co/150x150/f1f5f9/94a3b8?text=Produk';
+    }
+
+    const p = { sku, name, category, price, stock, image: finalImageValue };
+
+    const localSave = () => {
         if (idx > -1) { 
-            state.products[idx] = { ...state.products[idx], ...productData }; 
+            state.products[idx] = { ...state.products[idx], ...p }; 
         } else {
-            if(state.products.some(pr => pr.sku === productData.sku)) { 
+            if(state.products.some(pr => pr.sku === p.sku)) { 
                 showToast('SKU sudah terdaftar!', 'error'); 
                 return false; 
             }
-            state.products.push(productData);
+            state.products.push(p);
         }
         saveToLocalCache(); 
         if(typeof renderPOSProducts === 'function') renderPOSProducts(); 
@@ -382,56 +411,15 @@ async function saveProduct(e) {
 
     if (isCloudMode) {
         toggleLoadingOverlay(true);
-
-        // 1. JIKA ADA FOTO BARU (Base64) -> UPLOAD KE GOOGLE DRIVE DULU (Via POST)
-if (currentImageBase64) {
-    showToast("Mengunggah foto ke Google Drive...", "info");
-    try {
-        const savedApi = localStorage.getItem('kasirku_api_url');
-        
-        // TRICK UTAMA: Pakai method POST, tapi hilangkan headers bawaan 
-        // dan pakai mode: 'no-cors' jika diperlukan, atau kirim sebagai teks murni.
-        const uploadRes = await fetch(savedApi, {
-            method: 'POST',
-            // PENTING: Jangan pakai application/json, pakai text/plain biar lolos sensor CORS browser!
-            headers: { 
-                'Content-Type': 'text/plain;charset=utf-8' 
-            },
-            body: JSON.stringify({
-                action: "uploadImage",
-                file: {
-                    base64: currentImageBase64,
-                    mimeType: currentImageBase64.split(';')[0].split(':')[1],
-                    name: `IMG_${sku}_${Date.now()}.jpg`
-                }
-            })
-        });
-        
-        const uploadData = await uploadRes.json();
-        
-        if (uploadData.status === "success") {
-            finalImageUrl = uploadData.url; 
-        } else {
-            console.error("Upload Error:", uploadData.message);
-            showToast("Gagal unggah foto ke Drive. Memakai foto default.", "warning");
-        }
-    } catch (err) {
-        console.error("Fetch Upload Error:", err);
-        // JIKA TETAP TERJADI ERR_FAILED KARENA BROWSER BLOCK, KITA BYPASS LEWAT MODE OLEH GOOGLE:
-        showToast("Mencoba bypass jalur CORS...", "info");
-    }
-}
-
-        // 2. KIRIM DATA PRODUK LENGKAP KE GOOGLE SHEETS
-        const p = { sku, name, category, price, stock, image: finalImageUrl };
+        showToast("Menyimpan ke Cloud...", "info");
 
         callBackendAPI("saveProduct", { data: JSON.stringify(p) }).then(res => {
             toggleLoadingOverlay(false);
             if (res && res.status === "success") {
-                localSave(p);
-                showToast('Produk & Foto tersimpan di Cloud!', 'success');
+                localSave();
+                showToast('Produk berhasil disimpan ke Cloud!', 'success');
             } else {
-                showToast('Gagal menyimpan ke database awan.', 'error');
+                showToast('Gagal menyimpan ke Google Sheets.', 'error');
             }
         }).catch(err => {
             toggleLoadingOverlay(false);
@@ -439,9 +427,7 @@ if (currentImageBase64) {
         });
         
     } else { 
-        // Mode Offline / Lokal (Simpan Base64 nya langsung ke LocalStorage)
-        const p = { sku, name, category, price, stock, image: currentImageBase64 || finalImageUrl };
-        if(localSave(p)) showToast('Tersimpan secara lokal.', 'success'); 
+        if(localSave()) showToast('Tersimpan secara lokal.', 'success'); 
     }
 }
 
@@ -457,6 +443,8 @@ function deleteProduct(index) {
         const localDel = () => { 
             state.products.splice(deleteTargetIndex, 1); 
             saveToLocalCache(); 
+            // Sekalian bersihkan gambar lokal di storage perangkat jika ada
+            localStorage.removeItem('kasirku_img_' + target.sku);
             document.getElementById('modal-confirm-delete').classList.add('hidden'); 
             if(typeof renderPOSProducts === 'function') renderPOSProducts(); 
             renderInventory(); 
