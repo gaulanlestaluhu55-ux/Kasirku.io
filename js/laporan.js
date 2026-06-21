@@ -142,3 +142,60 @@ function renderLowStockList() {
         container.appendChild(itemDiv);
     });
 }
+
+// ==========================================
+// RENDER RIWAYAT TRANSAKSI (VERSI ANTI-BADAI)
+// ==========================================
+function renderHistory() {
+    const tbody = document.getElementById('history-table-body');
+    if(!tbody) return;
+    tbody.innerHTML = '';
+    
+    // 1. Cek Keamanan
+    if (!state.transactions || !Array.isArray(state.transactions) || state.transactions.length === 0) { 
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 font-semibold text-xs">Belum ada riwayat transaksi yang ditarik dari Cloud.</td></tr>`; 
+        return; 
+    }
+    
+    // 2. Render dengan Try-Catch
+    try {
+        state.transactions.forEach(tx => {
+            const tr = document.createElement('tr');
+            tr.className = "hover:bg-slate-50/50 transition-colors";
+            
+            const inv = tx.invoice || tx.Invoice || '-';
+            const date = tx.datetime || tx.Waktu || '-';
+            const total = parseFloat(tx.total || tx.Total || 0);
+            const paid = parseFloat(tx.cashPaid || tx.Bayar || 0);
+            const change = parseFloat(tx.change || tx.Kembalian || 0);
+
+            tr.innerHTML = `
+                <td class="p-4 font-mono font-semibold text-xs text-brand-600">${inv}</td>
+                <td class="p-4 text-xs font-bold text-slate-500">${date}</td>
+                <td class="p-4 text-right font-black text-slate-700">${formatRupiah(total)}</td>
+                <td class="p-4 text-right font-semibold text-slate-500">${formatRupiah(paid)}</td>
+                <td class="p-4 text-right font-semibold text-slate-500">${formatRupiah(change)}</td>
+                <td class="p-4 text-center">
+                    <button onclick='reprintTx("${inv}")' class="px-3 py-1.5 bg-slate-100 hover:bg-brand-50 hover:text-brand-700 rounded-lg text-xs font-semibold text-slate-600 transition-colors">
+                        <i class="fa-solid fa-eye"></i> Struk
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    } catch (error) {
+        console.error("Crash saat render riwayat:", error);
+        tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-rose-500 font-semibold text-xs">Terjadi kesalahan membaca format data.</td></tr>`;
+    }
+}
+
+function reprintTx(invoiceId) {
+    const tx = state.transactions.find(t => (t.invoice || t.Invoice) === invoiceId);
+    if(tx) { 
+        if(typeof openReceiptModal === 'function') {
+            openReceiptModal(tx); 
+        } else {
+            showToast("Sistem struk sedang dimuat...", "info");
+        }
+    }
+}
